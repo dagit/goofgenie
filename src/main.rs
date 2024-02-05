@@ -1,10 +1,10 @@
 pub mod usb2snes;
 
 use lazy_static::lazy_static;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use usb2snes::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone)]
 pub struct Samus {
     hp: u16,
     max_hp: u16,
@@ -14,10 +14,10 @@ pub struct Samus {
     max_supers: u16,
     pbs: u16,
     max_pbs: u16,
-    equipped_items: Vec<Item>,
-    collected_items: Vec<Item>,
-    equipped_beams: Vec<Beam>,
-    collected_beams: Vec<Beam>,
+    equipped_items: HashSet<Item>,
+    collected_items: HashSet<Item>,
+    equipped_beams: HashSet<Beam>,
+    collected_beams: HashSet<Beam>,
     reserve_hp: u16,
     max_reserve_hp: u16,
 }
@@ -83,7 +83,7 @@ const CHARGE: u16 = 0x1000;
 const CMD_SPACE: u32 = 0x2c00;
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Item {
     Varia = VARIA,
     SpringBall = SPRINGBALL,
@@ -99,7 +99,7 @@ enum Item {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Beam {
     Wave = WAVE,
     Ice = ICE,
@@ -108,77 +108,77 @@ enum Beam {
     Charge = CHARGE,
 }
 
-fn items_to_u16(items: &[Item]) -> u16 {
+fn items_to_u16(items: &[&Item]) -> u16 {
     let mut r = 0u16;
     for i in items {
-        r = r.wrapping_add(*i as u16);
+        r = r.wrapping_add(**i as u16);
     }
     r
 }
 
-fn u16_to_items(items: u16) -> Vec<Item> {
-    let mut r = Vec::new();
+fn u16_to_items(items: u16) -> HashSet<Item> {
+    let mut r = HashSet::new();
     if items & VARIA == VARIA {
-        r.push(Item::Varia);
+        r.insert(Item::Varia);
     }
     if items & SPRINGBALL == SPRINGBALL {
-        r.push(Item::SpringBall);
+        r.insert(Item::SpringBall);
     }
     if items & MORPHBALL == MORPHBALL {
-        r.push(Item::MorphBall);
+        r.insert(Item::MorphBall);
     }
     if items & SCREWATTACK == SCREWATTACK {
-        r.push(Item::ScrewAttack);
+        r.insert(Item::ScrewAttack);
     }
     if items & GRAVITY == GRAVITY {
-        r.push(Item::Gravity);
+        r.insert(Item::Gravity);
     }
     if items & HIJUMPBOOTS == HIJUMPBOOTS {
-        r.push(Item::HiJumpBoots);
+        r.insert(Item::HiJumpBoots);
     }
     if items & SPACEJUMP == SPACEJUMP {
-        r.push(Item::SpaceJump);
+        r.insert(Item::SpaceJump);
     }
     if items & BOMBS == BOMBS {
-        r.push(Item::Bombs);
+        r.insert(Item::Bombs);
     }
     if items & SPEEDBOOSTER == SPEEDBOOSTER {
-        r.push(Item::SpeedBooster);
+        r.insert(Item::SpeedBooster);
     }
     if items & GRAPPLE == GRAPPLE {
-        r.push(Item::Grapple);
+        r.insert(Item::Grapple);
     }
     if items & XRAY == XRAY {
-        r.push(Item::XRay);
+        r.insert(Item::XRay);
     }
 
     r
 }
 
-fn beams_to_u16(beams: &[Beam]) -> u16 {
+fn beams_to_u16(beams: &[&Beam]) -> u16 {
     let mut r = 0u16;
     for b in beams {
-        r = r.wrapping_add(*b as u16);
+        r = r.wrapping_add(**b as u16);
     }
     r
 }
 
-fn u16_to_beams(beams: u16) -> Vec<Beam> {
-    let mut r = Vec::new();
+fn u16_to_beams(beams: u16) -> HashSet<Beam> {
+    let mut r = HashSet::new();
     if beams & WAVE == WAVE {
-        r.push(Beam::Wave);
+        r.insert(Beam::Wave);
     }
     if beams & ICE == ICE {
-        r.push(Beam::Ice);
+        r.insert(Beam::Ice);
     }
     if beams & SPAZER == SPAZER {
-        r.push(Beam::Spazer);
+        r.insert(Beam::Spazer);
     }
     if beams & PLASMA == PLASMA {
-        r.push(Beam::Plasma);
+        r.insert(Beam::Plasma);
     }
     if beams & CHARGE == CHARGE {
-        r.push(Beam::Charge);
+        r.insert(Beam::Charge);
     }
 
     r
@@ -319,22 +319,30 @@ pub fn u16_to_le(data: u16) -> [u8; 2] {
 pub fn samus_overwrite_asm(samus: &Samus) -> Vec<u8> {
     let mut r = Vec::new();
     // First write samus's collected items
-    r.extend_from_slice(&lda_immediate_u16(items_to_u16(&samus.collected_items)));
+    r.extend_from_slice(&lda_immediate_u16(items_to_u16(
+        &samus.collected_items.iter().collect::<Vec<_>>(),
+    )));
     r.extend_from_slice(&sta_u16(
         *SAMUS_ADDR_MAP.get(&SamusField::CollectedItems).unwrap(),
     ));
     // Next we do equipped items
-    r.extend_from_slice(&lda_immediate_u16(items_to_u16(&samus.equipped_items)));
+    r.extend_from_slice(&lda_immediate_u16(items_to_u16(
+        &samus.equipped_items.iter().collect::<Vec<_>>(),
+    )));
     r.extend_from_slice(&sta_u16(
         *SAMUS_ADDR_MAP.get(&SamusField::EquippedItems).unwrap(),
     ));
     // Next we do collected beams
-    r.extend_from_slice(&lda_immediate_u16(beams_to_u16(&samus.collected_beams)));
+    r.extend_from_slice(&lda_immediate_u16(beams_to_u16(
+        &samus.collected_beams.iter().collect::<Vec<_>>(),
+    )));
     r.extend_from_slice(&sta_u16(
         *SAMUS_ADDR_MAP.get(&SamusField::CollectedBeams).unwrap(),
     ));
     // Next we do equipped beams
-    r.extend_from_slice(&lda_immediate_u16(beams_to_u16(&samus.equipped_beams)));
+    r.extend_from_slice(&lda_immediate_u16(beams_to_u16(
+        &samus.equipped_beams.iter().collect::<Vec<_>>(),
+    )));
     r.extend_from_slice(&sta_u16(
         *SAMUS_ADDR_MAP.get(&SamusField::EquippedBeams).unwrap(),
     ));
