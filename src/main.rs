@@ -111,7 +111,7 @@ enum Beam {
 fn items_to_u16(items: &[&Item]) -> u16 {
     let mut r = 0u16;
     for i in items {
-        r = r.wrapping_add(**i as u16);
+        r |= **i as u16;
     }
     r
 }
@@ -158,7 +158,7 @@ fn u16_to_items(items: u16) -> HashSet<Item> {
 fn beams_to_u16(beams: &[&Beam]) -> u16 {
     let mut r = 0u16;
     for b in beams {
-        r = r.wrapping_add(**b as u16);
+        r |= **b as u16;
     }
     r
 }
