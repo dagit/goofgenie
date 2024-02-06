@@ -340,8 +340,8 @@ impl SyncClient {
         Ok(())
     }
 
-    // TODO: rename this to something like put_cmd
-    pub fn put_cmd_address(&mut self, address: u32, data: &[u8]) -> Result<(), Box<dyn Error>> {
+    pub fn put_cmd(&mut self, data: &[u8]) -> Result<(), Box<dyn Error>> {
+        let address = 0x2c00;
         self.send_command_with_space(
             Command::PutAddress,
             Some(Space::CMD),
@@ -350,8 +350,64 @@ impl SyncClient {
                 Cow::Owned(format!("{:x}", data.len())),
             ],
         )?;
-        assert!(data.len() <= 512);
+        if data.len() > 512 {
+            return Err("data.len() > 512".into());
+        }
         self.client.send(Message::binary(data))?;
         Ok(())
+    }
+
+    pub fn get_cmd(&mut self) -> Result<Vec<u8>, Box<dyn Error>> {
+        let address = 0x2c00;
+        let cmd_len = 512;
+        self.send_command_with_space(
+            Command::GetAddress,
+            Some(Space::CMD),
+            &[
+                Cow::Owned(format!("{:x}", address)),
+                Cow::Owned(format!("{:x}", cmd_len)),
+            ],
+        )?;
+        let mut data: Vec<u8> = Vec::with_capacity(cmd_len);
+        loop {
+            let reply = self.client.read()?;
+            match reply {
+                Message::Binary(msgdata) => {
+                    data.extend(&msgdata);
+                }
+                _ => Err("Error getting a reply")?,
+            }
+            if data.len() == cmd_len {
+                break;
+            }
+        }
+        Ok(data)
+    }
+    // TODO: refactor this and get_cmd
+    pub fn get_cmd_header_byte(&mut self) -> Result<u8, Box<dyn Error>> {
+        let address = 0x2c00;
+        let cmd_len = 1;
+        self.send_command_with_space(
+            Command::GetAddress,
+            Some(Space::CMD),
+            &[
+                Cow::Owned(format!("{:x}", address)),
+                Cow::Owned(format!("{:x}", cmd_len)),
+            ],
+        )?;
+        let mut data: Vec<u8> = Vec::with_capacity(cmd_len);
+        loop {
+            let reply = self.client.read()?;
+            match reply {
+                Message::Binary(msgdata) => {
+                    data.extend(&msgdata);
+                }
+                _ => Err("Error getting a reply")?,
+            }
+            if data.len() == cmd_len {
+                break;
+            }
+        }
+        Ok(data[0])
     }
 }

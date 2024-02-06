@@ -195,6 +195,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     println!("{:#?}", client.info());
 
+    let cmd = client.get_cmd()?;
+    //println!("{:02x?}", cmd);
     // preamble corresponds to:
     // php
     // rep #$30
@@ -216,34 +218,59 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let postamble: [u8; 11] = [
         0xab, 0x9c, 0x00, 0x2c, 0x7a, 0xfa, 0x68, 0x28, 0x6c, 0xea, 0xff,
     ];
-    let samus = get_samus(&mut client)?;
+    let mut samus = get_samus(&mut client)?;
     // Example samus edit:
-    //samus.collected_items.push(Item::MorphBall);
-    //samus.collected_items.push(Item::Bombs);
-    //samus.collected_items.push(Item::XRay);
-    //samus.equipped_items.push(Item::XRay);
-    //samus.collected_items.push(Item::SpaceJump);
-    //samus.collected_beams.push(Beam::Wave);
-    //samus.equipped_beams.push(Beam::Wave);
-    //samus.hp = 50;
+    //samus.collected_items.insert(Item::Varia);
+    //samus.collected_items.insert(Item::MorphBall);
+    //samus.collected_items.insert(Item::Bombs);
+    //samus.collected_items.insert(Item::XRay);
+    //samus.equipped_items.insert(Item::XRay);
+    //samus.collected_items.insert(Item::SpringBall);
+    //samus.collected_items.insert(Item::ScrewAttack);
+    //samus.collected_items.insert(Item::Gravity);
+    //samus.collected_items.insert(Item::HiJumpBoots);
+    //samus.collected_items.insert(Item::SpeedBooster);
+    //samus.collected_items.insert(Item::Grapple);
+    //samus.equipped_items.insert(Item::Grapple);
+    //samus.collected_items.insert(Item::SpaceJump);
+    //samus.collected_beams.insert(Beam::Wave);
+    //samus.equipped_beams.insert(Beam::Wave);
+    //samus.collected_beams.insert(Beam::Ice);
+    //samus.equipped_beams.insert(Beam::Ice);
+    //samus.collected_beams.insert(Beam::Plasma);
+    //samus.equipped_beams.insert(Beam::Plasma);
+    //samus.collected_beams.insert(Beam::Charge);
+    //samus.equipped_beams.insert(Beam::Charge);
+    //samus.hp = 3000;
+    //samus.max_hp = 3000;
     //samus.max_reserve_hp = 100;
     //samus.reserve_hp = 10;
-    //samus.missiles = 10;
-    //samus.max_missiles = 100;
-    //samus.supers = 100;
-    //samus.max_supers = 100;
+    //samus.missiles = 255;
+    //samus.max_missiles = 255 * 13 + 255 * 4;
+    //samus.supers = samus.max_supers;
+    //samus.max_supers = 255*11 + 255*4;
     let mut data = Vec::new();
     data.extend_from_slice(&preamble);
     data.extend_from_slice(&samus_overwrite_asm(&samus));
+    //data.extend_from_slice(&max_kill_count());
+    //data.extend_from_slice(&delete_plms());
     //data.extend_from_slice(&spike_suit_asm());
     //data.extend_from_slice(&blue_suit_asm());
     //data.extend_from_slice(&g_mode_asm());
     data.extend_from_slice(&postamble);
-    assert!(data.len() <= 512);
-    client.put_cmd_address(CMD_SPACE, &data)?;
+    client.put_cmd(&data)?;
+    loop {
+        let header = client.get_cmd_header_byte()?;
+        if header == 0 {
+            break;
+        }
+    }
+    client.put_cmd(&cmd)?;
+    let new_cmd = client.get_cmd()?;
+    assert_eq!(cmd, new_cmd);
 
-    let samus = get_samus(&mut client)?;
-    println!("{:#?}", samus);
+    //let samus = get_samus(&mut client)?;
+    //println!("{:#?}", samus);
     //println!("{:02x?}", data);
 
     Ok(())
@@ -424,4 +451,25 @@ pub fn g_mode_asm() -> Vec<u8> {
     r.extend_from_slice(&sta_u16(0x1c23));
 
     r
+}
+
+pub fn max_kill_count() -> Vec<u8> {
+    let mut r = Vec::new();
+    // sep #$20
+    r.push(0xe2);
+    r.push(0x20);
+    r.extend_from_slice(&lda_immediate_u8(0xFF));
+    r.extend_from_slice(&sta_u16(0x0e50));
+    // rep #$20
+    r.push(0xc2);
+    r.push(0x20);
+
+    r
+}
+
+pub fn savestate2snes() -> Vec<u8> {
+    vec![
+        0x08, 0xc2, 0x30, 0x48, 0xaf, 0x18, 0x42, 0x00, 0x8f, 0x06, 0x20, 0xfc, 0x5c, 0x00, 0x00,
+        0xfc, 0xc2, 0x30, 0x68, 0x28, 0x6c, 0xea, 0xff, 0x6c, 0xea, 0xff,
+    ]
 }
