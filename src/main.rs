@@ -80,8 +80,6 @@ const SPAZER: u16 = 4;
 const PLASMA: u16 = 8;
 const CHARGE: u16 = 0x1000;
 
-const CMD_SPACE: u32 = 0x2c00;
-
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Item {
@@ -220,38 +218,44 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     ];
     let mut samus = get_samus(&mut client)?;
     // Example samus edit:
-    //samus.collected_items.insert(Item::Varia);
-    //samus.collected_items.insert(Item::MorphBall);
-    //samus.collected_items.insert(Item::Bombs);
-    //samus.collected_items.insert(Item::XRay);
-    //samus.equipped_items.insert(Item::XRay);
-    //samus.collected_items.insert(Item::SpringBall);
-    //samus.collected_items.insert(Item::ScrewAttack);
-    //samus.collected_items.insert(Item::Gravity);
-    //samus.collected_items.insert(Item::HiJumpBoots);
-    //samus.collected_items.insert(Item::SpeedBooster);
-    //samus.collected_items.insert(Item::Grapple);
-    //samus.equipped_items.insert(Item::Grapple);
-    //samus.collected_items.insert(Item::SpaceJump);
-    //samus.collected_beams.insert(Beam::Wave);
-    //samus.equipped_beams.insert(Beam::Wave);
-    //samus.collected_beams.insert(Beam::Ice);
-    //samus.equipped_beams.insert(Beam::Ice);
-    //samus.collected_beams.insert(Beam::Plasma);
-    //samus.equipped_beams.insert(Beam::Plasma);
-    //samus.collected_beams.insert(Beam::Charge);
-    //samus.equipped_beams.insert(Beam::Charge);
-    //samus.hp = 3000;
-    //samus.max_hp = 3000;
-    //samus.max_reserve_hp = 100;
-    //samus.reserve_hp = 10;
-    //samus.missiles = 255;
+    samus.collected_items.insert(Item::Varia);
+    samus.collected_items.insert(Item::MorphBall);
+    samus.collected_items.insert(Item::Bombs);
+    samus.collected_items.insert(Item::XRay);
+    samus.equipped_items.insert(Item::XRay);
+    samus.collected_items.insert(Item::SpringBall);
+    samus.collected_items.insert(Item::ScrewAttack);
+    samus.collected_items.insert(Item::Gravity);
+    samus.collected_items.insert(Item::HiJumpBoots);
+    samus.collected_items.insert(Item::SpeedBooster);
+    samus.collected_items.insert(Item::Grapple);
+    samus.equipped_items.insert(Item::Grapple);
+    samus.collected_items.insert(Item::SpaceJump);
+    samus.collected_beams.insert(Beam::Wave);
+    samus.equipped_beams.insert(Beam::Wave);
+    samus.collected_beams.insert(Beam::Ice);
+    samus.equipped_beams.insert(Beam::Ice);
+    samus.collected_beams.insert(Beam::Plasma);
+    samus.equipped_beams.insert(Beam::Plasma);
+    samus.collected_beams.insert(Beam::Charge);
+    samus.equipped_beams.insert(Beam::Charge);
+    samus.hp = 3000;
+    samus.max_hp = 3000;
+    samus.max_reserve_hp = 100;
+    samus.reserve_hp = 10;
+    samus.missiles = 255;
+    samus.max_missiles = 255;
+    samus.supers = 255;
+    samus.max_supers = 255;
+    samus.pbs = 255;
+    samus.max_pbs = 255;
     //samus.max_missiles = 255 * 13 + 255 * 4;
     //samus.supers = samus.max_supers;
     //samus.max_supers = 255*11 + 255*4;
     let mut data = Vec::new();
     data.extend_from_slice(&preamble);
-    data.extend_from_slice(&samus_overwrite_asm(&samus));
+    //data.extend_from_slice(&samus_overwrite_asm(&samus));
+    data.extend_from_slice(&add_one_minute_to_timer());
     //data.extend_from_slice(&max_kill_count());
     //data.extend_from_slice(&delete_plms());
     //data.extend_from_slice(&spike_suit_asm());
@@ -276,16 +280,46 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn lda_immediate_u16(data: u16) -> [u8; 3] {
+pub fn lda_immediate_u16(data: u16) -> [u8; 3] {
     let bytes = u16_to_le(data);
     [0xa9, bytes[0], bytes[1]]
 }
 
-fn lda_immediate_u8(data: u8) -> [u8; 2] {
+pub fn lda_immediate_u8(data: u8) -> [u8; 2] {
     [0xa9, data]
 }
 
-fn sta_u16(data: u16) -> [u8; 3] {
+pub fn lda_addr(address: u16) -> [u8; 3] {
+    let bytes = u16_to_le(address);
+    [0xad, bytes[0], bytes[1]]
+}
+
+pub fn inc() -> [u8; 1] {
+    [0x1A]
+}
+
+pub fn sed() -> [u8; 1] {
+    [0xf8]
+}
+
+pub fn cld() -> [u8; 1] {
+    [0xd8]
+}
+
+pub fn adc_direct(data: u8) -> [u8; 2] {
+    [0x65, data]
+}
+
+pub fn adc_immediate_u16(data: u16) -> [u8; 3] {
+    let bytes = u16_to_le(data);
+    [0x69, bytes[0], bytes[1]]
+}
+
+pub fn adc_immediate_u8(data: u8) -> [u8; 2] {
+    [0x69, data]
+}
+
+pub fn sta_u16(data: u16) -> [u8; 3] {
     let bytes = u16_to_le(data);
     [0x8d, bytes[0], bytes[1]]
 }
@@ -460,6 +494,24 @@ pub fn max_kill_count() -> Vec<u8> {
     r.push(0x20);
     r.extend_from_slice(&lda_immediate_u8(0xFF));
     r.extend_from_slice(&sta_u16(0x0e50));
+    // rep #$20
+    r.push(0xc2);
+    r.push(0x20);
+
+    r
+}
+
+pub fn add_one_minute_to_timer() -> Vec<u8> {
+    const TIMER_MINUTES: u16 = 0x0947;
+    let mut r = Vec::new();
+    // sep #$20
+    r.push(0xe2);
+    r.push(0x20);
+    r.extend_from_slice(&lda_addr(TIMER_MINUTES));
+    r.extend_from_slice(&sed());
+    r.extend_from_slice(&adc_immediate_u8(1));
+    r.extend_from_slice(&cld());
+    r.extend_from_slice(&sta_u16(TIMER_MINUTES));
     // rep #$20
     r.push(0xc2);
     r.push(0x20);
