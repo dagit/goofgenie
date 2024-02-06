@@ -16,4 +16,8 @@ clap = { version = "3", features = ["derive"] }
 toml = "0"
 serde_derive = "1"
 bytemuck = { version = "*", features = ["derive"] }
-lazy_static = "1.4.0"
+
+[profile.release]
+codegen-units = 1
+strip = true
+lto = true
